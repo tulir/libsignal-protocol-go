@@ -68,6 +68,9 @@ type Cipher struct {
 func (d *Cipher) Encrypt(plaintext []byte) (protocol.CiphertextMessage, error) {
 	sessionRecord := d.sessionStore.LoadSession(d.remoteAddress)
 	sessionState := sessionRecord.SessionState()
+	if !sessionState.HasSenderChain() {
+		return nil, fmt.Errorf("session has no sender chain key")
+	}
 	chainKey := sessionState.SenderChainKey()
 	messageKeys := chainKey.MessageKeys()
 	senderEphemeral := sessionState.SenderRatchetKey()
