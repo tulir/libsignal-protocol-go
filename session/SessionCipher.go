@@ -67,6 +67,9 @@ type Cipher struct {
 // the CiphertextMessage interface.
 func (d *Cipher) Encrypt(plaintext []byte) (protocol.CiphertextMessage, error) {
 	sessionRecord := d.sessionStore.LoadSession(d.remoteAddress)
+	if sessionRecord == nil {
+		return nil, fmt.Errorf("LoadSession returned nil")
+	}
 	sessionState := sessionRecord.SessionState()
 	chainKey := sessionState.SenderChainKey()
 	messageKeys := chainKey.MessageKeys()
@@ -147,6 +150,9 @@ func (d *Cipher) DecryptAndGetKey(ciphertextMessage *protocol.SignalMessage) ([]
 
 	// Load the session record from our session store and decrypt the message.
 	sessionRecord := d.sessionStore.LoadSession(d.remoteAddress)
+	if sessionRecord == nil {
+		return nil, nil, fmt.Errorf("LoadSession returned nil")
+	}
 	plaintext, messageKeys, err := d.DecryptWithRecord(sessionRecord, ciphertextMessage)
 	if err != nil {
 		return nil, nil, err
@@ -170,6 +176,9 @@ func (d *Cipher) DecryptMessage(ciphertextMessage *protocol.PreKeySignalMessage)
 func (d *Cipher) DecryptMessageReturnKey(ciphertextMessage *protocol.PreKeySignalMessage) ([]byte, *message.Keys, error) {
 	// Load or create session record for this session.
 	sessionRecord := d.sessionStore.LoadSession(d.remoteAddress)
+	if sessionRecord == nil {
+		return nil, nil, fmt.Errorf("LoadSession returned nil")
+	}
 	unsignedPreKeyID, err := d.builder.Process(sessionRecord, ciphertextMessage)
 	if err != nil {
 		return nil, nil, err

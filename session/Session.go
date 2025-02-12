@@ -192,6 +192,9 @@ func (b *Builder) ProcessBundle(preKey *prekey.Bundle) error {
 
 	// Load our session and generate keys.
 	sessionRecord := b.sessionStore.LoadSession(b.remoteAddress)
+	if sessionRecord == nil {
+		return fmt.Errorf("LoadSession returned nil")
+	}
 	ourBaseKey, err := ecc.GenerateKeyPair()
 	if err != nil {
 		return err
