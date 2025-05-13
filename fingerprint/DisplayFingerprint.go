@@ -2,6 +2,7 @@ package fingerprint
 
 import (
 	"fmt"
+
 	"go.mau.fi/libsignal/util/bytehelper"
 )
 

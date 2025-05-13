@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	
+
 	"go.mau.fi/libsignal/state/record"
 )
 

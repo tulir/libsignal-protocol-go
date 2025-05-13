@@ -58,7 +58,7 @@ func TestSerializing(t *testing.T) {
 
 	// Try deserializing our session back into an object.
 	var deserializedSession *record.Session
-deserializedSession, err = record.NewSessionFromBytes(serializedSession, serializer.Session, serializer.State)
+	deserializedSession, err = record.NewSessionFromBytes(serializedSession, serializer.Session, serializer.State)
 	if err != nil {
 		logger.Error("Failed to deserialize session.")
 		t.FailNow()

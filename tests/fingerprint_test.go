@@ -2,8 +2,9 @@ package tests
 
 import (
 	"fmt"
-	"go.mau.fi/libsignal/fingerprint"
 	"testing"
+
+	"go.mau.fi/libsignal/fingerprint"
 )
 
 // TestFingerprint will test printing key fingerprints.

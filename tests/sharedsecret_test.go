@@ -2,10 +2,11 @@ package tests
 
 import (
 	"encoding/base64"
+	"testing"
+
 	"go.mau.fi/libsignal/ecc"
 	"go.mau.fi/libsignal/kdf"
 	"go.mau.fi/libsignal/logger"
-	"testing"
 )
 
 // TestSharedSecret tests the key derivation function's ability to

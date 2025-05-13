@@ -2,7 +2,7 @@ package tests
 
 import (
 	"context"
-	
+
 	"go.mau.fi/libsignal/groups"
 	"go.mau.fi/libsignal/keys/identity"
 	"go.mau.fi/libsignal/protocol"
