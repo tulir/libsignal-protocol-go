@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"context"
+	
 	"go.mau.fi/libsignal/groups"
 	"go.mau.fi/libsignal/keys/identity"
 	"go.mau.fi/libsignal/protocol"
@@ -73,8 +75,10 @@ func newUser(name string, deviceID uint32, serializer *serialize.Serializer) *us
 	signalUser.senderKeyStore = NewInMemorySenderKey()
 
 	// Put all our pre keys in our local stores.
+	ctx := context.Background()
 	for i := range signalUser.preKeys {
 		signalUser.preKeyStore.StorePreKey(
+			ctx,
 			signalUser.preKeys[i].ID().Value,
 			record.NewPreKey(signalUser.preKeys[i].ID().Value, signalUser.preKeys[i].KeyPair(), serializer.PreKeyRecord),
 		)
@@ -82,6 +86,7 @@ func newUser(name string, deviceID uint32, serializer *serialize.Serializer) *us
 
 	// Store our's own signed prekey
 	signalUser.signedPreKeyStore.StoreSignedPreKey(
+		ctx,
 		signalUser.signedPreKey.ID(),
 		record.NewSignedPreKey(
 			signalUser.signedPreKey.ID(),

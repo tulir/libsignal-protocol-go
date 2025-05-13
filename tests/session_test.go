@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"go.mau.fi/libsignal/keys/prekey"
@@ -12,6 +13,7 @@ import (
 
 // TestSessionBuilder checks building of a session.
 func TestSessionBuilder(t *testing.T) {
+	ctx := context.Background()
 
 	// Create a serializer object that will be used to encode/decode data.
 	serializer := newSerializer()
@@ -40,7 +42,7 @@ func TestSessionBuilder(t *testing.T) {
 
 	// Process Bob's retrieved prekey to establish a session.
 	logger.Debug("Building sender's (Alice) session...")
-	err := alice.sessionBuilder.ProcessBundle(retrievedPreKey)
+	err := alice.sessionBuilder.ProcessBundle(ctx, retrievedPreKey)
 	if err != nil {
 		logger.Error("Unable to process retrieved prekey bundle")
 		t.FailNow()
@@ -50,7 +52,7 @@ func TestSessionBuilder(t *testing.T) {
 	plaintextMessage := []byte("Hello!")
 	logger.Info("Plaintext message: ", string(plaintextMessage))
 	sessionCipher := session.NewCipher(alice.sessionBuilder, bob.address)
-	message, err := sessionCipher.Encrypt(plaintextMessage)
+	message, err := sessionCipher.Encrypt(ctx, plaintextMessage)
 	if err != nil {
 		logger.Error("Unable to encrypt message: ", err)
 		t.FailNow()
@@ -71,7 +73,7 @@ func TestSessionBuilder(t *testing.T) {
 	// Try and decrypt the message
 	bobSessionCipher := session.NewCipher(bob.sessionBuilder, alice.address)
 
-	msg, err := bobSessionCipher.DecryptMessage(receivedMessage)
+	msg, err := bobSessionCipher.DecryptMessage(ctx, receivedMessage)
 	if err != nil {
 		logger.Error("Unable to decrypt message: ", err)
 		t.FailNow()
@@ -84,7 +86,7 @@ func TestSessionBuilder(t *testing.T) {
 
 	// Send a response to Alice
 	plaintextResponse := []byte("oui!")
-	response, err := bobSessionCipher.Encrypt(plaintextResponse)
+	response, err := bobSessionCipher.Encrypt(ctx, plaintextResponse)
 	if err != nil {
 		logger.Error("Unable to encrypt response: ", err)
 		t.FailNow()
@@ -98,7 +100,7 @@ func TestSessionBuilder(t *testing.T) {
 		t.FailNow()
 	}
 
-	deResponse, err := sessionCipher.Decrypt(responseMessage)
+	deResponse, err := sessionCipher.Decrypt(ctx, responseMessage)
 	if err != nil {
 		logger.Error("Unable to decrypt response from Bob")
 		t.FailNow()
@@ -112,6 +114,7 @@ func TestSessionBuilder(t *testing.T) {
 
 // TestSessionRoundtrip checks sending messages back and forth from users.
 func TestSessionRoundtrip(t *testing.T) {
+	ctx := context.Background()
 
 	// Create a serializer object that will be used to encode/decode data.
 	serializer := newSerializer()
@@ -142,7 +145,7 @@ func TestSessionRoundtrip(t *testing.T) {
 
 	// Process Bob's retrieved prekey to establish a session.
 	logger.Debug("Building sender's (Alice) session...")
-	err := alice.sessionBuilder.ProcessBundle(retrievedPreKey)
+	err := alice.sessionBuilder.ProcessBundle(ctx, retrievedPreKey)
 	if err != nil {
 		logger.Error("Unable to process retrieved prekey bundle")
 		t.FailNow()
@@ -192,6 +195,7 @@ func TestSessionRoundtrip(t *testing.T) {
 
 // TestSessionOutOfOrder checks sending messages out of order.
 func TestSessionOutOfOrder(t *testing.T) {
+	ctx := context.Background()
 
 	// Create a serializer object that will be used to encode/decode data.
 	serializer := newSerializer()
@@ -222,7 +226,7 @@ func TestSessionOutOfOrder(t *testing.T) {
 
 	// Process Bob's retrieved prekey to establish a session.
 	logger.Debug("Building sender's (Alice) session...")
-	err := alice.sessionBuilder.ProcessBundle(retrievedPreKey)
+	err := alice.sessionBuilder.ProcessBundle(ctx, retrievedPreKey)
 	if err != nil {
 		logger.Error("Unable to process retrieved prekey bundle")
 		t.FailNow()
@@ -267,7 +271,7 @@ func sendMessages(count int, cipher *session.Cipher, serializer *serialize.Seria
 
 	messages := make([]protocol.CiphertextMessage, count)
 	for i, str := range messageStrings {
-		msg := encryptMessage(str, cipher, serializer, t)
+		msg := encryptMessage(str, cipher, serializer, t) // ctx is passed inside encryptMessage
 		messages[i] = msg
 	}
 
@@ -287,9 +291,10 @@ func receiveMessages(messages []protocol.CiphertextMessage, messageStrings []str
 
 // encryptMessage is a helper function to send encrypted messages with the given cipher.
 func encryptMessage(message string, cipher *session.Cipher, serializer *serialize.Serializer, t *testing.T) protocol.CiphertextMessage {
+	ctx := context.Background()
 	plaintextMessage := []byte(message)
 	logger.Info("Encrypting message: ", string(plaintextMessage))
-	encrypted, err := cipher.Encrypt(plaintextMessage)
+	encrypted, err := cipher.Encrypt(ctx, plaintextMessage)
 	if err != nil {
 		logger.Error("Unable to encrypt message: ", err)
 		t.FailNow()
@@ -316,9 +321,10 @@ func encryptMessage(message string, cipher *session.Cipher, serializer *serializ
 
 // decryptMessage is a helper function to decrypt messages of a session.
 func decryptMessage(message protocol.CiphertextMessage, cipher *session.Cipher, t *testing.T) string {
+	ctx := context.Background()
 	switch message.(type) {
 	case *protocol.PreKeySignalMessage:
-		plain, err := cipher.DecryptMessage(message.(*protocol.PreKeySignalMessage))
+		plain, err := cipher.DecryptMessage(ctx, message.(*protocol.PreKeySignalMessage))
 		if err != nil {
 			logger.Error("Unable to decrypt prekey message: ", err)
 			t.FailNow()
@@ -326,7 +332,7 @@ func decryptMessage(message protocol.CiphertextMessage, cipher *session.Cipher, 
 		return string(plain)
 	}
 
-	msg, err := cipher.Decrypt(message.(*protocol.SignalMessage))
+	msg, err := cipher.Decrypt(ctx, message.(*protocol.SignalMessage))
 	if err != nil {
 		logger.Error("Unable to decrypt message: ", err)
 		t.FailNow()

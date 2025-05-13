@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"go.mau.fi/libsignal/keys/message"
@@ -13,6 +14,7 @@ import (
 // TestSavedMessageKeys tests the ability to save message keys for use in
 // decrypting messages in the future.
 func TestSavedMessageKeys(t *testing.T) {
+	ctx := context.Background()
 
 	// Create a serializer object that will be used to encode/decode data.
 	serializer := newSerializer()
@@ -41,7 +43,7 @@ func TestSavedMessageKeys(t *testing.T) {
 
 	// Process Bob's retrieved prekey to establish a session.
 	logger.Debug("Building sender's (Alice) session...")
-	err := alice.sessionBuilder.ProcessBundle(retrievedPreKey)
+	err := alice.sessionBuilder.ProcessBundle(ctx, retrievedPreKey)
 	if err != nil {
 		logger.Error("Unable to process retrieved prekey bundle")
 		t.FailNow()
@@ -51,7 +53,7 @@ func TestSavedMessageKeys(t *testing.T) {
 	plaintextMessage := []byte("Hello!")
 	logger.Info("Plaintext message: ", string(plaintextMessage))
 	sessionCipher := session.NewCipher(alice.sessionBuilder, bob.address)
-	message, err := sessionCipher.Encrypt(plaintextMessage)
+	message, err := sessionCipher.Encrypt(ctx, plaintextMessage)
 	if err != nil {
 		logger.Error("Unable to encrypt message: ", err)
 		t.FailNow()
@@ -71,7 +73,7 @@ func TestSavedMessageKeys(t *testing.T) {
 
 	// Try and decrypt the message and get the message key.
 	bobSessionCipher := session.NewCipher(bob.sessionBuilder, alice.address)
-	msg, key, err := bobSessionCipher.DecryptMessageReturnKey(receivedMessage)
+	msg, key, err := bobSessionCipher.DecryptMessageReturnKey(ctx, receivedMessage)
 	if err != nil {
 		logger.Error("Unable to decrypt message: ", err)
 		t.FailNow()
@@ -85,12 +87,12 @@ func TestSavedMessageKeys(t *testing.T) {
 	// Try using the message key to decrypt the message again.
 	logger.Info("Testing using saved message key to decrypt again.")
 	for i := 0; i < 10; i++ {
-		testDecryptingWithKey(bobSessionCipher, receivedMessage.WhisperMessage(), key, plaintextMessage, t)
+		testDecryptingWithKey(ctx, bobSessionCipher, receivedMessage.WhisperMessage(), key, plaintextMessage, t)
 	}
 }
 
-func testDecryptingWithKey(cipher *session.Cipher, receivedMessage *protocol.SignalMessage, key *message.Keys, plaintextMessage []byte, t *testing.T) {
-	msg, err := cipher.DecryptWithKey(receivedMessage, key)
+func testDecryptingWithKey(ctx context.Context, cipher *session.Cipher, receivedMessage *protocol.SignalMessage, key *message.Keys, plaintextMessage []byte, t *testing.T) {
+	msg, err := cipher.DecryptWithKey(ctx, receivedMessage, key)
 	if err != nil {
 		t.FailNow()
 	}

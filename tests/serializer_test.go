@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 
 // TestSerializing tests serialization and deserialization of Signal objects.
 func TestSerializing(t *testing.T) {
+	ctx := context.Background()
 
 	// Create a serializer object that will be used to encode/decode data.
 	serializer := newSerializer()
@@ -38,20 +40,25 @@ func TestSerializing(t *testing.T) {
 	)
 
 	// Process Bob's retrieved prekey to establish a session.
-	alice.sessionBuilder.ProcessBundle(retrivedPreKey)
+	alice.sessionBuilder.ProcessBundle(ctx, retrivedPreKey)
 
 	// Create a session cipher to encrypt messages to Bob.
 	plaintextMessage := []byte("Hello!")
 	sessionCipher := session.NewCipher(alice.sessionBuilder, bob.address)
-	sessionCipher.Encrypt(plaintextMessage)
+	sessionCipher.Encrypt(ctx, plaintextMessage)
 
 	// Serialize our session so it can be stored.
-	loadedSession := alice.sessionStore.LoadSession(bob.address)
+	loadedSession, err := alice.sessionStore.LoadSession(ctx, bob.address)
+	if err != nil {
+		logger.Error("Failed to load session.")
+		t.FailNow()
+	}
 	serializedSession := loadedSession.Serialize()
 	logger.Debug(string(serializedSession))
 
 	// Try deserializing our session back into an object.
-	deserializedSession, err := record.NewSessionFromBytes(serializedSession, serializer.Session, serializer.State)
+	var deserializedSession *record.Session
+deserializedSession, err = record.NewSessionFromBytes(serializedSession, serializer.Session, serializer.State)
 	if err != nil {
 		logger.Error("Failed to deserialize session.")
 		t.FailNow()

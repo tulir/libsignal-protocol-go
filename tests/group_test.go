@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"testing"
 
 	"go.mau.fi/libsignal/groups"
@@ -13,6 +14,7 @@ import (
 
 // TestGroupSessionBuilder checks building of a group session.
 func TestGroupSessionBuilder(t *testing.T) {
+	ctx := context.Background()
 
 	// Create a serializer object that will be used to encode/decode data.
 	serializer := newSerializer()
@@ -44,7 +46,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 
 	// Process Bob's retrieved prekey to establish a session.
 	logger.Debug("Building sender's (Alice) session...")
-	err := alice.sessionBuilder.ProcessBundle(retrivedPreKey)
+	err := alice.sessionBuilder.ProcessBundle(ctx, retrivedPreKey)
 	if err != nil {
 		logger.Error("Unable to process retrieved prekey bundle")
 		t.FailNow()
@@ -52,7 +54,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 
 	// Create a session builder to create a session between Alice -> Bob.
 	aliceSenderKeyName := protocol.NewSenderKeyName(groupName, alice.address)
-	aliceSkdm, err := alice.groupBuilder.Create(aliceSenderKeyName)
+	aliceSkdm, err := alice.groupBuilder.Create(ctx, aliceSenderKeyName)
 	if err != nil {
 		logger.Error("Unable to create group session")
 		t.FailNow()
@@ -61,7 +63,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 
 	// Create a one-to-one session cipher to encrypt the skdm to Bob.
 	aliceBobSessionCipher := session.NewCipher(alice.sessionBuilder, bob.address)
-	encryptedSkdm, err := aliceBobSessionCipher.Encrypt(aliceSkdm.Serialize())
+	encryptedSkdm, err := aliceBobSessionCipher.Encrypt(ctx, aliceSkdm.Serialize())
 	if err != nil {
 		logger.Error("Unable to encrypt message: ", err)
 		t.FailNow()
@@ -79,7 +81,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 
 	// Try and decrypt the senderkey distribution message
 	bobAliceSessionCipher := session.NewCipher(bob.sessionBuilder, alice.address)
-	msg, err := bobAliceSessionCipher.DecryptMessage(receivedMessage)
+	msg, err := bobAliceSessionCipher.DecryptMessage(ctx, receivedMessage)
 	if err != nil {
 		logger.Error("Unable to decrypt message: ", err)
 		t.FailNow()
@@ -97,7 +99,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 	alicePlainMessages, aliceEncryptedMessages := sendGroupMessages(1000, aliceSendingCipher, serializer, t)
 
 	// Build bob's side of the session.
-	bob.groupBuilder.Process(aliceSenderKeyName, bobReceivedSkdm)
+	bob.groupBuilder.Process(ctx, aliceSenderKeyName, bobReceivedSkdm)
 	receivingBobCipher := groups.NewGroupCipher(bob.groupBuilder, aliceSenderKeyName, bob.senderKeyStore)
 
 	// Decrypt the messages sent by alice.
@@ -108,7 +110,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 
 	// Create a group builder with Bob's address.
 	bobSenderKeyName := protocol.NewSenderKeyName(groupName, bob.address)
-	bobSkdm, err := bob.groupBuilder.Create(bobSenderKeyName)
+	bobSkdm, err := bob.groupBuilder.Create(ctx, bobSenderKeyName)
 	if err != nil {
 		logger.Error("Unable to create group session")
 		t.FailNow()
@@ -116,7 +118,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 	bobSendingCipher := groups.NewGroupCipher(bob.groupBuilder, bobSenderKeyName, bob.senderKeyStore)
 
 	// Encrypt the senderKey distribution message to send to Alice.
-	bobEncryptedSkdm, err := bobAliceSessionCipher.Encrypt(bobSkdm.Serialize())
+	bobEncryptedSkdm, err := bobAliceSessionCipher.Encrypt(ctx, bobSkdm.Serialize())
 	if err != nil {
 		logger.Error("Unable to encrypt message: ", err)
 		t.FailNow()
@@ -133,7 +135,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 	// ***** Alice receives senderkey distribution message from Bob *****
 
 	// Decrypt the received message.
-	msg, err = aliceBobSessionCipher.Decrypt(aliceReceivedMessage)
+	msg, err = aliceBobSessionCipher.Decrypt(ctx, aliceReceivedMessage)
 	if err != nil {
 		logger.Error("Unable to decrypt message: ", err)
 		t.FailNow()
@@ -151,7 +153,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 	bobPlainMessages, bobEncryptedMessages := sendGroupMessages(1000, bobSendingCipher, serializer, t)
 
 	// Build alice's side of the session.
-	alice.groupBuilder.Process(bobSenderKeyName, aliceReceivedSkdm)
+	alice.groupBuilder.Process(ctx, bobSenderKeyName, aliceReceivedSkdm)
 	receivingAliceCipher := groups.NewGroupCipher(alice.groupBuilder, bobSenderKeyName, alice.senderKeyStore)
 
 	// Decrypt the messages sent by bob.
@@ -161,6 +163,7 @@ func TestGroupSessionBuilder(t *testing.T) {
 
 // sendGroupMessages will generate and return a list of plaintext and encrypted messages.
 func sendGroupMessages(count int, cipher *groups.GroupCipher, serializer *serialize.Serializer, t *testing.T) ([]string, []protocol.CiphertextMessage) {
+	ctx := context.Background()
 	texts := []string{
 		"Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
 		"Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.",
@@ -174,7 +177,7 @@ func sendGroupMessages(count int, cipher *groups.GroupCipher, serializer *serial
 
 	messages := make([]protocol.CiphertextMessage, count)
 	for i, str := range messageStrings {
-		msg := encryptGroupMessage(str, cipher, serializer, t)
+		msg := encryptGroupMessage(ctx, str, cipher, serializer, t)
 		messages[i] = msg
 	}
 
@@ -183,8 +186,9 @@ func sendGroupMessages(count int, cipher *groups.GroupCipher, serializer *serial
 
 // receiveMessages is a helper function to receive a bunch of encrypted messages and decrypt them.
 func receiveGroupMessages(messages []protocol.CiphertextMessage, messageStrings []string, cipher *groups.GroupCipher, t *testing.T) {
+	ctx := context.Background()
 	for i, receivedMessage := range messages {
-		msg := decryptGroupMessage(receivedMessage, cipher, t)
+		msg := decryptGroupMessage(ctx, receivedMessage, cipher, t)
 		if messageStrings[i] != msg {
 			logger.Error("Decrypted message does not match original: ", messageStrings[i], " != ", msg)
 			t.FailNow()
@@ -193,10 +197,10 @@ func receiveGroupMessages(messages []protocol.CiphertextMessage, messageStrings 
 }
 
 // encryptMessage is a helper function to send encrypted messages with the given cipher.
-func encryptGroupMessage(message string, cipher *groups.GroupCipher, serializer *serialize.Serializer, t *testing.T) protocol.CiphertextMessage {
+func encryptGroupMessage(ctx context.Context, message string, cipher *groups.GroupCipher, serializer *serialize.Serializer, t *testing.T) protocol.CiphertextMessage {
 	plaintextMessage := []byte(message)
 	logger.Info("Encrypting message: ", string(plaintextMessage))
-	encrypted, err := cipher.Encrypt(plaintextMessage)
+	encrypted, err := cipher.Encrypt(ctx, plaintextMessage)
 	if err != nil {
 		logger.Error("Unable to encrypt message: ", err)
 		t.FailNow()
@@ -221,14 +225,14 @@ func encryptGroupMessage(message string, cipher *groups.GroupCipher, serializer 
 }
 
 // decryptMessage is a helper function to decrypt messages of a session.
-func decryptGroupMessage(message protocol.CiphertextMessage, cipher *groups.GroupCipher, t *testing.T) string {
+func decryptGroupMessage(ctx context.Context, message protocol.CiphertextMessage, cipher *groups.GroupCipher, t *testing.T) string {
 	senderKeyMessage := message.(*protocol.SenderKeyMessage)
 	//if !ok {
 	//	logger.Error("Wrong message type in decrypting group message.")
 	//	t.FailNow()
 	//}
 
-	msg, err := cipher.Decrypt(senderKeyMessage)
+	msg, err := cipher.Decrypt(ctx, senderKeyMessage)
 	if err != nil {
 		logger.Error("Unable to decrypt message: ", err)
 		t.FailNow()

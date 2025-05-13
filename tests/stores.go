@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"context"
+
 	groupRecord "go.mau.fi/libsignal/groups/state/record"
 	"go.mau.fi/libsignal/keys/identity"
 	"go.mau.fi/libsignal/protocol"
@@ -29,17 +31,18 @@ func (i *InMemoryIdentityKey) GetIdentityKeyPair() *identity.KeyPair {
 	return i.identityKeyPair
 }
 
-func (i *InMemoryIdentityKey) GetLocalRegistrationId() uint32 {
+func (i *InMemoryIdentityKey) GetLocalRegistrationID() uint32 {
 	return i.localRegistrationID
 }
 
-func (i *InMemoryIdentityKey) SaveIdentity(address *protocol.SignalAddress, identityKey *identity.Key) {
+func (i *InMemoryIdentityKey) SaveIdentity(ctx context.Context, address *protocol.SignalAddress, identityKey *identity.Key) error {
 	i.trustedKeys[address] = identityKey
+	return nil
 }
 
-func (i *InMemoryIdentityKey) IsTrustedIdentity(address *protocol.SignalAddress, identityKey *identity.Key) bool {
+func (i *InMemoryIdentityKey) IsTrustedIdentity(ctx context.Context, address *protocol.SignalAddress, identityKey *identity.Key) (bool, error) {
 	trusted := i.trustedKeys[address]
-	return (trusted == nil || trusted.Fingerprint() == identityKey.Fingerprint())
+	return (trusted == nil || trusted.Fingerprint() == identityKey.Fingerprint()), nil
 }
 
 // PreKeyStore
@@ -53,21 +56,23 @@ type InMemoryPreKey struct {
 	store map[uint32]*record.PreKey
 }
 
-func (i *InMemoryPreKey) LoadPreKey(preKeyID uint32) *record.PreKey {
-	return i.store[preKeyID]
+func (i *InMemoryPreKey) LoadPreKey(ctx context.Context, preKeyID uint32) (*record.PreKey, error) {
+	return i.store[preKeyID], nil
 }
 
-func (i *InMemoryPreKey) StorePreKey(preKeyID uint32, preKeyRecord *record.PreKey) {
+func (i *InMemoryPreKey) StorePreKey(ctx context.Context, preKeyID uint32, preKeyRecord *record.PreKey) error {
 	i.store[preKeyID] = preKeyRecord
+	return nil
 }
 
-func (i *InMemoryPreKey) ContainsPreKey(preKeyID uint32) bool {
+func (i *InMemoryPreKey) ContainsPreKey(ctx context.Context, preKeyID uint32) (bool, error) {
 	_, ok := i.store[preKeyID]
-	return ok
+	return ok, nil
 }
 
-func (i *InMemoryPreKey) RemovePreKey(preKeyID uint32) {
+func (i *InMemoryPreKey) RemovePreKey(ctx context.Context, preKeyID uint32) error {
 	delete(i.store, preKeyID)
+	return nil
 }
 
 // SessionStore
@@ -83,17 +88,21 @@ type InMemorySession struct {
 	serializer *serialize.Serializer
 }
 
-func (i *InMemorySession) LoadSession(address *protocol.SignalAddress) *record.Session {
-	if i.ContainsSession(address) {
-		return i.sessions[address]
+func (i *InMemorySession) LoadSession(ctx context.Context, address *protocol.SignalAddress) (*record.Session, error) {
+	contains, err := i.ContainsSession(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+	if contains {
+		return i.sessions[address], nil
 	}
 	sessionRecord := record.NewSession(i.serializer.Session, i.serializer.State)
 	i.sessions[address] = sessionRecord
 
-	return sessionRecord
+	return sessionRecord, nil
 }
 
-func (i *InMemorySession) GetSubDeviceSessions(name string) []uint32 {
+func (i *InMemorySession) GetSubDeviceSessions(ctx context.Context, name string) ([]uint32, error) {
 	var deviceIDs []uint32
 
 	for key := range i.sessions {
@@ -102,24 +111,27 @@ func (i *InMemorySession) GetSubDeviceSessions(name string) []uint32 {
 		}
 	}
 
-	return deviceIDs
+	return deviceIDs, nil
 }
 
-func (i *InMemorySession) StoreSession(remoteAddress *protocol.SignalAddress, record *record.Session) {
+func (i *InMemorySession) StoreSession(ctx context.Context, remoteAddress *protocol.SignalAddress, record *record.Session) error {
 	i.sessions[remoteAddress] = record
+	return nil
 }
 
-func (i *InMemorySession) ContainsSession(remoteAddress *protocol.SignalAddress) bool {
+func (i *InMemorySession) ContainsSession(ctx context.Context, remoteAddress *protocol.SignalAddress) (bool, error) {
 	_, ok := i.sessions[remoteAddress]
-	return ok
+	return ok, nil
 }
 
-func (i *InMemorySession) DeleteSession(remoteAddress *protocol.SignalAddress) {
+func (i *InMemorySession) DeleteSession(ctx context.Context, remoteAddress *protocol.SignalAddress) error {
 	delete(i.sessions, remoteAddress)
+	return nil
 }
 
-func (i *InMemorySession) DeleteAllSessions() {
+func (i *InMemorySession) DeleteAllSessions(ctx context.Context) error {
 	i.sessions = make(map[*protocol.SignalAddress]*record.Session)
+	return nil
 }
 
 // SignedPreKeyStore
@@ -133,31 +145,33 @@ type InMemorySignedPreKey struct {
 	store map[uint32]*record.SignedPreKey
 }
 
-func (i *InMemorySignedPreKey) LoadSignedPreKey(signedPreKeyID uint32) *record.SignedPreKey {
-	return i.store[signedPreKeyID]
+func (i *InMemorySignedPreKey) LoadSignedPreKey(ctx context.Context, signedPreKeyID uint32) (*record.SignedPreKey, error) {
+	return i.store[signedPreKeyID], nil
 }
 
-func (i *InMemorySignedPreKey) LoadSignedPreKeys() []*record.SignedPreKey {
+func (i *InMemorySignedPreKey) LoadSignedPreKeys(ctx context.Context) ([]*record.SignedPreKey, error) {
 	var preKeys []*record.SignedPreKey
 
 	for _, record := range i.store {
 		preKeys = append(preKeys, record)
 	}
 
-	return preKeys
+	return preKeys, nil
 }
 
-func (i *InMemorySignedPreKey) StoreSignedPreKey(signedPreKeyID uint32, record *record.SignedPreKey) {
+func (i *InMemorySignedPreKey) StoreSignedPreKey(ctx context.Context, signedPreKeyID uint32, record *record.SignedPreKey) error {
 	i.store[signedPreKeyID] = record
+	return nil
 }
 
-func (i *InMemorySignedPreKey) ContainsSignedPreKey(signedPreKeyID uint32) bool {
+func (i *InMemorySignedPreKey) ContainsSignedPreKey(ctx context.Context, signedPreKeyID uint32) (bool, error) {
 	_, ok := i.store[signedPreKeyID]
-	return ok
+	return ok, nil
 }
 
-func (i *InMemorySignedPreKey) RemoveSignedPreKey(signedPreKeyID uint32) {
+func (i *InMemorySignedPreKey) RemoveSignedPreKey(ctx context.Context, signedPreKeyID uint32) error {
 	delete(i.store, signedPreKeyID)
+	return nil
 }
 
 func NewInMemorySenderKey() *InMemorySenderKey {
@@ -170,10 +184,11 @@ type InMemorySenderKey struct {
 	store map[*protocol.SenderKeyName]*groupRecord.SenderKey
 }
 
-func (i *InMemorySenderKey) StoreSenderKey(senderKeyName *protocol.SenderKeyName, keyRecord *groupRecord.SenderKey) {
+func (i *InMemorySenderKey) StoreSenderKey(ctx context.Context, senderKeyName *protocol.SenderKeyName, keyRecord *groupRecord.SenderKey) error {
 	i.store[senderKeyName] = keyRecord
+	return nil
 }
 
-func (i *InMemorySenderKey) LoadSenderKey(senderKeyName *protocol.SenderKeyName) *groupRecord.SenderKey {
-	return i.store[senderKeyName]
+func (i *InMemorySenderKey) LoadSenderKey(ctx context.Context, senderKeyName *protocol.SenderKeyName) (*groupRecord.SenderKey, error) {
+	return i.store[senderKeyName], nil
 }

@@ -160,7 +160,7 @@ func (i *InMemoryIdentityKey) GetIdentityKeyPair() *identity.KeyPair {
 	return i.identityKeyPair
 }
 
-func (i *InMemoryIdentityKey) GetLocalRegistrationId() uint32 {
+func (i *InMemoryIdentityKey) GetLocalRegistrationID() uint32 {
 	return i.localRegistrationID
 }
 
