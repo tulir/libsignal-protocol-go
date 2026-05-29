@@ -1,11 +1,11 @@
 module go.mau.fi/libsignal
 
-go 1.24.0
+go 1.25.0
 
-toolchain go1.25.1
+toolchain go1.26.3
 
 require (
-	filippo.io/edwards25519 v1.1.0
-	golang.org/x/crypto v0.42.0
-	google.golang.org/protobuf v1.36.10
+	filippo.io/edwards25519 v1.2.0
+	golang.org/x/crypto v0.52.0
+	google.golang.org/protobuf v1.36.11
 )
