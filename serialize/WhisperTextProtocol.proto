@@ -16,6 +16,8 @@ message PreKeySignalMessage {
   optional bytes  baseKey        = 2;
   optional bytes  identityKey    = 3;
   optional bytes  message        = 4; // SignalMessage
+  optional uint32 kyberPreKeyId  = 7;
+  optional bytes  kyberCiphertext = 8;
 }
 
 message KeyExchangeMessage {

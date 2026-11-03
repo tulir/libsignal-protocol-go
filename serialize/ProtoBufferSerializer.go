@@ -58,7 +58,7 @@ func (j *ProtoBufSignalMessageSerializer) Serialize(signalMessage *protocol.Sign
 	}
 
 	if signalMessage.Version != 0 {
-		serialized = append(serialized, []byte(strconv.Itoa(signalMessage.Version))...)
+		serialized = append(serialized, intsToByteHighAndLow(signalMessage.Version, signalMessage.Version))
 	}
 	serialized = append(serialized, message...)
 
@@ -117,13 +117,17 @@ func (j *ProtoBufPreKeySignalMessageSerializer) Serialize(signalMessage *protoco
 	if signalMessage.PreKeyID != nil && !signalMessage.PreKeyID.IsEmpty {
 		preKeyMessage.PreKeyId = &signalMessage.PreKeyID.Value
 	}
+	if signalMessage.KyberPreKeyID != nil && !signalMessage.KyberPreKeyID.IsEmpty {
+		preKeyMessage.KyberPreKeyId = &signalMessage.KyberPreKeyID.Value
+		preKeyMessage.KyberCiphertext = signalMessage.KyberCiphertext
+	}
 
 	message, err := proto.Marshal(preKeyMessage)
 	if err != nil {
 		logger.Error("Error serializing prekey signal message: ", err)
 	}
 
-	serialized := append([]byte(strconv.Itoa(signalMessage.Version)), message...)
+	serialized := append([]byte{intsToByteHighAndLow(signalMessage.Version, signalMessage.Version)}, message...)
 	logger.Debug("Serialize PreKeySignalMessage result: ", serialized)
 	return serialized
 }
@@ -146,15 +150,21 @@ func (j *ProtoBufPreKeySignalMessageSerializer) Deserialize(serialized []byte) (
 	if sm.GetPreKeyId() != 0 {
 		preKeyId = optional.NewOptionalUint32(sm.GetPreKeyId())
 	}
+	kyberPreKeyID := optional.NewEmptyUint32()
+	if sm.KyberPreKeyId != nil {
+		kyberPreKeyID = optional.NewOptionalUint32(sm.GetKyberPreKeyId())
+	}
 
 	preKeySignalMessage := protocol.PreKeySignalMessageStructure{
-		Version:        version,
-		RegistrationID: sm.GetRegistrationId(),
-		BaseKey:        sm.GetBaseKey(),
-		IdentityKey:    sm.GetIdentityKey(),
-		SignedPreKeyID: sm.GetSignedPreKeyId(),
-		Message:        sm.GetMessage(),
-		PreKeyID:       preKeyId,
+		Version:         version,
+		RegistrationID:  sm.GetRegistrationId(),
+		BaseKey:         sm.GetBaseKey(),
+		IdentityKey:     sm.GetIdentityKey(),
+		SignedPreKeyID:  sm.GetSignedPreKeyId(),
+		Message:         sm.GetMessage(),
+		PreKeyID:        preKeyId,
+		KyberPreKeyID:   kyberPreKeyID,
+		KyberCiphertext: sm.GetKyberCiphertext(),
 	}
 
 	return &preKeySignalMessage, nil
