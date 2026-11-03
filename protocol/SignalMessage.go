@@ -110,6 +110,10 @@ type SignalMessageStructure struct {
 	CipherText      []byte
 	Version         int
 	Mac             []byte
+	// MacInput is the received version byte and protobuf, exactly as covered
+	// by the sender's MAC. Re-serializing the known fields would drop fields
+	// this library doesn't know about and break MAC verification.
+	MacInput []byte
 }
 
 // SignalMessage is a cipher message that contains a message encrypted
@@ -150,15 +154,18 @@ func (s *SignalMessage) VerifyMac(messageVersion int, senderIdentityKey,
 
 	// Create a copy of the message without the mac. We'll use this to calculate
 	// the message authentication code.
-	structure := s.structure
-	signalMessage, err := NewSignalMessageFromStruct(&structure, s.serializer)
-	if err != nil {
-		return err
+	serialized := s.structure.MacInput
+	if len(serialized) == 0 {
+		structure := s.structure
+		signalMessage, err := NewSignalMessageFromStruct(&structure, s.serializer)
+		if err != nil {
+			return err
+		}
+		signalMessage.structure.Mac = nil
+		signalMessage.structure.Version = 0
+		version := []byte(strconv.Itoa(s.MessageVersion()))
+		serialized = append(version, signalMessage.Serialize()...)
 	}
-	signalMessage.structure.Mac = nil
-	signalMessage.structure.Version = 0
-	version := []byte(strconv.Itoa(s.MessageVersion()))
-	serialized := append(version, signalMessage.Serialize()...)
 
 	// Calculate the message authentication code from the serialized structure.
 	ourMac, err := getMac(
