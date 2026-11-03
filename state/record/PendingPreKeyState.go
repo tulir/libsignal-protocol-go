@@ -29,6 +29,8 @@ func NewPendingPreKeyFromStruct(preKey *PendingPreKeyStructure) (*PendingPreKey,
 		preKey.SignedPreKeyID,
 		baseKey,
 	)
+	pendingPreKey.kyberPreKeyID = preKey.KyberPreKeyID
+	pendingPreKey.kyberCiphertext = preKey.KyberCiphertext
 
 	return pendingPreKey, nil
 }
@@ -39,6 +41,9 @@ type PendingPreKeyStructure struct {
 	PreKeyID       *optional.Uint32
 	SignedPreKeyID uint32
 	BaseKey        []byte
+
+	KyberPreKeyID   *optional.Uint32 `json:",omitempty"`
+	KyberCiphertext []byte           `json:",omitempty"`
 }
 
 // PendingPreKey is a structure for pending pre keys
@@ -47,6 +52,9 @@ type PendingPreKey struct {
 	preKeyID       *optional.Uint32
 	signedPreKeyID uint32
 	baseKey        ecc.ECPublicKeyable
+
+	kyberPreKeyID   *optional.Uint32
+	kyberCiphertext []byte
 }
 
 // structure will return a serializeable structure of the pending prekey.
@@ -56,6 +64,9 @@ func (p *PendingPreKey) structure() *PendingPreKeyStructure {
 			PreKeyID:       p.preKeyID,
 			SignedPreKeyID: p.signedPreKeyID,
 			BaseKey:        p.baseKey.Serialize(),
+
+			KyberPreKeyID:   p.kyberPreKeyID,
+			KyberCiphertext: p.kyberCiphertext,
 		}
 	}
 	return nil

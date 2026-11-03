@@ -41,6 +41,9 @@ type UnackPreKeyMessageItems struct {
 	preKeyID       *optional.Uint32
 	signedPreKeyID uint32
 	baseKey        ecc.ECPublicKeyable
+
+	kyberPreKeyID   *optional.Uint32
+	kyberCiphertext []byte
 }
 
 // PreKeyID returns the prekey id of the unacknowledged message.
@@ -66,4 +69,12 @@ func (u *UnackPreKeyMessageItems) structure() *UnackPreKeyMessageItemsStructure 
 		SignedPreKeyID: u.signedPreKeyID,
 		BaseKey:        u.baseKey.Serialize(),
 	}
+}
+
+func (u *UnackPreKeyMessageItems) KyberPreKeyID() *optional.Uint32 {
+	return u.kyberPreKeyID
+}
+
+func (u *UnackPreKeyMessageItems) KyberCiphertext() []byte {
+	return u.kyberCiphertext
 }

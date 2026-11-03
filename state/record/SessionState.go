@@ -450,6 +450,13 @@ func (s *State) SetUnacknowledgedPreKeyMessage(preKeyID *optional.Uint32, signed
 	)
 }
 
+func (s *State) SetUnacknowledgedKyberPreKey(kyberPreKeyID uint32, ciphertext []byte) {
+	if s.pendingPreKey != nil {
+		s.pendingPreKey.kyberPreKeyID = optional.NewOptionalUint32(kyberPreKeyID)
+		s.pendingPreKey.kyberCiphertext = ciphertext
+	}
+}
+
 // HasUnacknowledgedPreKeyMessage will return true if this session has an unacknowledged
 // pre key message.
 func (s *State) HasUnacknowledgedPreKeyMessage() bool {
@@ -464,7 +471,10 @@ func (s *State) UnackPreKeyMessageItems() (*UnackPreKeyMessageItems, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewUnackPreKeyMessageItems(preKeyID, signedPreKeyID, baseKey), nil
+	items := NewUnackPreKeyMessageItems(preKeyID, signedPreKeyID, baseKey)
+	items.kyberPreKeyID = s.pendingPreKey.kyberPreKeyID
+	items.kyberCiphertext = s.pendingPreKey.kyberCiphertext
+	return items, nil
 }
 
 // ClearUnackPreKeyMessage will clear the session's pending pre key.
