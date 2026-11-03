@@ -116,11 +116,13 @@ func (d *Cipher) Encrypt(ctx context.Context, plaintext []byte) (protocol.Cipher
 		}
 		localRegistrationID := sessionState.LocalRegistrationID()
 
-		ciphertextMessage, err = protocol.NewPreKeySignalMessage(
+		ciphertextMessage, err = protocol.NewPQPreKeySignalMessage(
 			sessionVersion,
 			localRegistrationID,
 			items.PreKeyID(),
 			items.SignedPreKeyID(),
+			items.KyberPreKeyID(),
+			items.KyberCiphertext(),
 			items.BaseKey(),
 			sessionState.LocalIdentityKey(),
 			ciphertextMessage.(*protocol.SignalMessage),
@@ -213,7 +215,7 @@ func (d *Cipher) DecryptMessageReturnKey(ctx context.Context, ciphertextMessage 
 	if sessionRecord == nil {
 		return nil, nil, fmt.Errorf("LoadSession returned nil")
 	}
-	unsignedPreKeyID, err := d.builder.Process(ctx, sessionRecord, ciphertextMessage)
+	unsignedPreKeyID, usedKyberPreKeyID, err := d.builder.process(ctx, sessionRecord, ciphertextMessage)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -227,6 +229,11 @@ func (d *Cipher) DecryptMessageReturnKey(ctx context.Context, ciphertextMessage 
 	}
 	if !unsignedPreKeyID.IsEmpty {
 		if err := d.preKeyStore.RemovePreKey(ctx, unsignedPreKeyID.Value); err != nil {
+			return nil, nil, err
+		}
+	}
+	if !usedKyberPreKeyID.IsEmpty {
+		if err := d.builder.kyberPreKeyStore.MarkKyberPreKeyUsed(ctx, usedKyberPreKeyID.Value); err != nil {
 			return nil, nil, err
 		}
 	}

@@ -3,6 +3,7 @@ package session
 
 import (
 	"context"
+	"crypto/mlkem"
 	"fmt"
 
 	"go.mau.fi/libsignal/ecc"
@@ -48,6 +49,7 @@ func NewBuilderFromSignal(signalStore store.SignalProtocol,
 		remoteAddress:     remoteAddress,
 		serializer:        serializer,
 	}
+	builder.kyberPreKeyStore, _ = signalStore.(store.KyberPreKey)
 
 	return &builder
 }
@@ -72,42 +74,50 @@ type Builder struct {
 	identityKeyStore  store.IdentityKey
 	remoteAddress     *protocol.SignalAddress
 	serializer        *serialize.Serializer
+	kyberPreKeyStore  store.KyberPreKey
+}
+
+func (b *Builder) SetKyberPreKeyStore(kyberStore store.KyberPreKey) {
+	b.kyberPreKeyStore = kyberStore
 }
 
 // Process builds a new session from a session record and pre
 // key signal message.
 func (b *Builder) Process(ctx context.Context, sessionRecord *record.Session, message *protocol.PreKeySignalMessage) (unsignedPreKeyID *optional.Uint32, err error) {
+	unsignedPreKeyID, _, err = b.process(ctx, sessionRecord, message)
+	return
+}
+
+func (b *Builder) process(ctx context.Context, sessionRecord *record.Session, message *protocol.PreKeySignalMessage) (unsignedPreKeyID, usedKyberPreKeyID *optional.Uint32, err error) {
 
 	// Check to see if the keys are trusted.
 	theirIdentityKey := message.IdentityKey()
 	trusted, err := b.identityKeyStore.IsTrustedIdentity(ctx, b.remoteAddress, theirIdentityKey)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !trusted {
-		return nil, signalerror.ErrUntrustedIdentity
+		return nil, nil, signalerror.ErrUntrustedIdentity
 	}
 
-	// Use version 3 of the signal/axolotl protocol.
-	unsignedPreKeyID, err = b.processV3(ctx, sessionRecord, message)
+	unsignedPreKeyID, usedKyberPreKeyID, err = b.processV3(ctx, sessionRecord, message)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Save the identity key to our identity store.
 	if err := b.identityKeyStore.SaveIdentity(ctx, b.remoteAddress, theirIdentityKey); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	// Return the unsignedPreKeyID
-	return unsignedPreKeyID, nil
+	return unsignedPreKeyID, usedKyberPreKeyID, nil
 }
 
 // ProcessV3 builds a new session from a session record and pre key
 // signal message. After a session is constructed in this way, the embedded
 // SignalMessage can be decrypted.
 func (b *Builder) processV3(ctx context.Context, sessionRecord *record.Session,
-	message *protocol.PreKeySignalMessage) (unsignedPreKeyID *optional.Uint32, err error) {
+	message *protocol.PreKeySignalMessage) (unsignedPreKeyID, usedKyberPreKeyID *optional.Uint32, err error) {
 
 	logger.Debug("Processing message with PreKeyID: ", message.PreKeyID())
 	// Check to see if we've already set up a session for this V3 message.
@@ -117,16 +127,16 @@ func (b *Builder) processV3(ctx context.Context, sessionRecord *record.Session,
 	)
 	if sessionExists {
 		logger.Debug("We've already setup a session for this V3 message, letting bundled message fall through...")
-		return optional.NewEmptyUint32(), nil
+		return optional.NewEmptyUint32(), optional.NewEmptyUint32(), nil
 	}
 
 	// Load our signed prekey from our signed prekey store.
 	ourSignedPreKeyRecord, err := b.signedPreKeyStore.LoadSignedPreKey(ctx, message.SignedPreKeyID())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if ourSignedPreKeyRecord == nil {
-		return nil, fmt.Errorf("%w with ID %d", signalerror.ErrNoSignedPreKey, message.SignedPreKeyID())
+		return nil, nil, fmt.Errorf("%w with ID %d", signalerror.ErrNoSignedPreKey, message.SignedPreKeyID())
 	}
 	ourSignedPreKey := ourSignedPreKeyRecord.KeyPair()
 
@@ -143,10 +153,10 @@ func (b *Builder) processV3(ctx context.Context, sessionRecord *record.Session,
 	if !message.PreKeyID().IsEmpty {
 		oneTimePreKey, err := b.preKeyStore.LoadPreKey(ctx, message.PreKeyID().Value)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if oneTimePreKey == nil {
-			return nil, fmt.Errorf("%w with ID %d", signalerror.ErrNoOneTimeKeyFound, message.PreKeyID().Value)
+			return nil, nil, fmt.Errorf("%w with ID %d", signalerror.ErrNoOneTimeKeyFound, message.PreKeyID().Value)
 		}
 		parameters.SetOurOneTimePreKey(oneTimePreKey.KeyPair())
 	} else {
@@ -154,6 +164,31 @@ func (b *Builder) processV3(ctx context.Context, sessionRecord *record.Session,
 	}
 
 	// If this is a fresh record, archive our current state.
+	usedKyberPreKeyID = optional.NewEmptyUint32()
+	sessionVersion := protocol.CurrentVersion
+	if !message.KyberPreKeyID().IsEmpty || len(message.KyberCiphertext()) > 0 {
+		if message.KyberPreKeyID().IsEmpty || len(message.KyberCiphertext()) == 0 {
+			return nil, nil, fmt.Errorf("%w: kyber prekey ID or ciphertext missing", signalerror.ErrIncompleteMessage)
+		}
+		if b.kyberPreKeyStore == nil {
+			return nil, nil, fmt.Errorf("%w: got PQXDH prekey message without a kyber prekey store", signalerror.ErrNoOneTimeKeyFound)
+		}
+		kyberPreKey, err := b.kyberPreKeyStore.LoadKyberPreKey(ctx, message.KyberPreKeyID().Value)
+		if err != nil {
+			return nil, nil, err
+		}
+		if kyberPreKey == nil {
+			return nil, nil, fmt.Errorf("%w with kyber ID %d", signalerror.ErrNoOneTimeKeyFound, message.KyberPreKeyID().Value)
+		}
+		sharedSecret, err := kyberPreKey.Decapsulate(message.KyberCiphertext())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to decapsulate kyber ciphertext: %w", err)
+		}
+		parameters.SetKEMSharedSecret(sharedSecret)
+		sessionVersion = protocol.PQXDHVersion
+		usedKyberPreKeyID = message.KyberPreKeyID()
+	}
+
 	if !sessionRecord.IsFresh() {
 		sessionRecord.ArchiveCurrentState()
 	}
@@ -162,9 +197,9 @@ func (b *Builder) processV3(ctx context.Context, sessionRecord *record.Session,
 	sessionState := sessionRecord.SessionState()
 	derivedKeys, sessionErr := ratchet.CalculateReceiverSession(parameters)
 	if sessionErr != nil {
-		return nil, sessionErr
+		return nil, nil, sessionErr
 	}
-	sessionState.SetVersion(protocol.CurrentVersion)
+	sessionState.SetVersion(sessionVersion)
 	sessionState.SetRemoteIdentityKey(parameters.TheirIdentityKey())
 	sessionState.SetLocalIdentityKey(parameters.OurIdentityKeyPair().PublicKey())
 	sessionState.SetSenderChain(parameters.OurRatchetKey(), derivedKeys.ChainKey)
@@ -177,9 +212,9 @@ func (b *Builder) processV3(ctx context.Context, sessionRecord *record.Session,
 
 	// Remove the PreKey from our store and return the message prekey id if it is valid.
 	if message.PreKeyID() != nil && message.PreKeyID().Value != medium.MaxValue {
-		return message.PreKeyID(), nil
+		return message.PreKeyID(), usedKyberPreKeyID, nil
 	}
-	return optional.NewEmptyUint32(), nil
+	return optional.NewEmptyUint32(), usedKyberPreKeyID, nil
 }
 
 // ProcessBundle builds a new session from a PreKeyBundle retrieved
@@ -232,6 +267,23 @@ func (b *Builder) ProcessBundle(ctx context.Context, preKey *prekey.Bundle) erro
 	parameters.SetTheirRatchetKey(theirSignedPreKey)
 	parameters.SetTheirOneTimePreKey(theirOneTimePreKey)
 
+	sessionVersion := protocol.CurrentVersion
+	var kyberCiphertext []byte
+	if kyberPublic := preKey.KyberPreKeyPublic(); len(kyberPublic) > 0 {
+		kyberSig := preKey.KyberPreKeySignature()
+		if len(kyberSig) != 64 || !ecc.VerifySignature(preKeyPublic, kyberPublic, [64]byte(kyberSig)) {
+			return signalerror.ErrInvalidSignature
+		}
+		encapsulationKey, err := mlkem.NewEncapsulationKey1024(kyberPublic)
+		if err != nil {
+			return fmt.Errorf("invalid kyber prekey: %w", err)
+		}
+		var sharedSecret []byte
+		sharedSecret, kyberCiphertext = encapsulationKey.Encapsulate()
+		parameters.SetKEMSharedSecret(sharedSecret)
+		sessionVersion = protocol.PQXDHVersion
+	}
+
 	// If this is a fresh record, archive our current state.
 	if !sessionRecord.IsFresh() {
 		sessionRecord.ArchiveCurrentState()
@@ -258,7 +310,7 @@ func (b *Builder) ProcessBundle(ctx context.Context, preKey *prekey.Bundle) erro
 	}
 
 	// Calculate the sender session.
-	sessionState.SetVersion(protocol.CurrentVersion)
+	sessionState.SetVersion(sessionVersion)
 	sessionState.SetRemoteIdentityKey(parameters.TheirIdentityKey())
 	sessionState.SetLocalIdentityKey(parameters.OurIdentityKey().PublicKey())
 	sessionState.AddReceiverChain(parameters.TheirRatchetKey(), derivedKeys.ChainKey.Current())
@@ -271,6 +323,9 @@ func (b *Builder) ProcessBundle(ctx context.Context, preKey *prekey.Bundle) erro
 		preKey.SignedPreKeyID(),
 		ourBaseKey.PublicKey(),
 	)
+	if kyberCiphertext != nil {
+		sessionState.SetUnacknowledgedKyberPreKey(preKey.KyberPreKeyID().Value, kyberCiphertext)
+	}
 
 	// Set the local registration ID based on the registration id in our identity key store.
 	sessionState.SetLocalRegistrationID(
