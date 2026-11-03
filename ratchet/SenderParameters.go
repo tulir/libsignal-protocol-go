@@ -43,6 +43,7 @@ type SenderParameters struct {
 	theirSignedPreKey  ecc.ECPublicKeyable
 	theirOneTimePreKey ecc.ECPublicKeyable
 	theirRatchetKey    ecc.ECPublicKeyable
+	kemSharedSecret    []byte
 }
 
 // OurIdentityKey returns the identity key pair of the sender.
@@ -103,4 +104,12 @@ func (s *SenderParameters) SetTheirOneTimePreKey(theirOneTimePreKey ecc.ECPublic
 // SetTheirRatchetKey sets the receiver's ratchet key.
 func (s *SenderParameters) SetTheirRatchetKey(theirRatchetKey ecc.ECPublicKeyable) {
 	s.theirRatchetKey = theirRatchetKey
+}
+
+func (s *SenderParameters) KEMSharedSecret() []byte {
+	return s.kemSharedSecret
+}
+
+func (s *SenderParameters) SetKEMSharedSecret(secret []byte) {
+	s.kemSharedSecret = secret
 }

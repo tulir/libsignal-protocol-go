@@ -43,6 +43,7 @@ type ReceiverParameters struct {
 
 	theirBaseKey     ecc.ECPublicKeyable
 	theirIdentityKey *identity.Key
+	kemSharedSecret  []byte
 }
 
 // OurIdentityKeyPair returns the identity key of the receiver.
@@ -103,4 +104,12 @@ func (r *ReceiverParameters) SetTheirBaseKey(theirBaseKey ecc.ECPublicKeyable) {
 // SetTheirIdentityKey sets the identity key of the sender.
 func (r *ReceiverParameters) SetTheirIdentityKey(theirIdentityKey *identity.Key) {
 	r.theirIdentityKey = theirIdentityKey
+}
+
+func (s *ReceiverParameters) KEMSharedSecret() []byte {
+	return s.kemSharedSecret
+}
+
+func (s *ReceiverParameters) SetKEMSharedSecret(secret []byte) {
+	s.kemSharedSecret = secret
 }

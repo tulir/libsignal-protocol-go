@@ -26,6 +26,8 @@ func genDiscontinuity() [32]byte {
 // CalculateSenderSession calculates the key agreement for a recipient. This
 // should be used when we are trying to send a message to someone for the
 // first time.
+const PQXDHInfo = "WhisperText_X25519_SHA-256_CRYSTALS-KYBER-1024"
+
 func CalculateSenderSession(parameters *SenderParameters) (*session.KeyPair, error) {
 	var secret [32]byte
 	var publicKey [32]byte
@@ -75,7 +77,12 @@ func CalculateSenderSession(parameters *SenderParameters) (*session.KeyPair, err
 	}
 
 	// Derive the root and chain keys based on the master secret.
-	derivedKeysBytes, err := kdf.DeriveSecrets(masterSecret, nil, []byte("WhisperText"), root.DerivedSecretsSize)
+	info := "WhisperText"
+	if len(parameters.KEMSharedSecret()) > 0 {
+		masterSecret = append(masterSecret, parameters.KEMSharedSecret()...)
+		info = PQXDHInfo
+	}
+	derivedKeysBytes, err := kdf.DeriveSecrets(masterSecret, nil, []byte(info), root.DerivedSecretsSize)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +148,12 @@ func CalculateReceiverSession(parameters *ReceiverParameters) (*session.KeyPair,
 	}
 
 	// Derive the root and chain keys based on the master secret.
-	derivedKeysBytes, err := kdf.DeriveSecrets(masterSecret, nil, []byte("WhisperText"), root.DerivedSecretsSize)
+	info := "WhisperText"
+	if len(parameters.KEMSharedSecret()) > 0 {
+		masterSecret = append(masterSecret, parameters.KEMSharedSecret()...)
+		info = PQXDHInfo
+	}
+	derivedKeysBytes, err := kdf.DeriveSecrets(masterSecret, nil, []byte(info), root.DerivedSecretsSize)
 	if err != nil {
 		return nil, err
 	}
