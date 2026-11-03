@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
-	"strconv"
 
 	"go.mau.fi/libsignal/ecc"
 	"go.mau.fi/libsignal/keys/identity"
@@ -44,7 +43,7 @@ func NewSignalMessageFromStruct(structure *SignalMessageStructure, serializer Si
 	}
 
 	// Throw an error if the given message structure is a future version.
-	if structure.Version > CurrentVersion {
+	if structure.Version > PQXDHVersion {
 		return nil, fmt.Errorf("%w %d (normal message)", signalerror.ErrUnknownMessageVersion, structure.Version)
 	}
 
@@ -71,7 +70,7 @@ func NewSignalMessage(messageVersion int, counter, previousCounter uint32, macKe
 	senderRatchetKey ecc.ECPublicKeyable, ciphertext []byte, senderIdentityKey,
 	receiverIdentityKey *identity.Key, serializer SignalMessageSerializer) (*SignalMessage, error) {
 
-	version := []byte(strconv.Itoa(messageVersion))
+	version := []byte{versionByte(messageVersion)}
 	// Build the signal message structure with the given data.
 	structure := &SignalMessageStructure{
 		Counter:         counter,
@@ -163,7 +162,7 @@ func (s *SignalMessage) VerifyMac(messageVersion int, senderIdentityKey,
 		}
 		signalMessage.structure.Mac = nil
 		signalMessage.structure.Version = 0
-		version := []byte(strconv.Itoa(s.MessageVersion()))
+		version := []byte{versionByte(s.MessageVersion())}
 		serialized = append(version, signalMessage.Serialize()...)
 	}
 
@@ -230,4 +229,8 @@ func getMac(messageVersion int, senderIdentityKey, receiverIdentityKey *identity
 	fullMac := mac.Sum(nil)
 
 	return bytehelper.Trim(fullMac, MacLength), nil
+}
+
+func versionByte(version int) byte {
+	return byte(version<<4 | version)
 }

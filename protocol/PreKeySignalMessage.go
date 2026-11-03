@@ -41,7 +41,7 @@ func NewPreKeySignalMessageFromStruct(structure *PreKeySignalMessageStructure,
 	}
 
 	// Throw an error if the given message structure is a future version.
-	if structure.Version > CurrentVersion {
+	if structure.Version > PQXDHVersion {
 		return nil, fmt.Errorf("%w %d (prekey message)", signalerror.ErrUnknownMessageVersion, structure.Version)
 	}
 
@@ -81,14 +81,24 @@ func NewPreKeySignalMessageFromStruct(structure *PreKeySignalMessageStructure,
 func NewPreKeySignalMessage(version int, registrationID uint32, preKeyID *optional.Uint32, signedPreKeyID uint32,
 	baseKey ecc.ECPublicKeyable, identityKey *identity.Key, message *SignalMessage, serializer PreKeySignalMessageSerializer,
 	msgSerializer SignalMessageSerializer) (*PreKeySignalMessage, error) {
+	return NewPQPreKeySignalMessage(version, registrationID, preKeyID, signedPreKeyID, nil, nil, baseKey, identityKey, message, serializer, msgSerializer)
+}
+
+// NewPQPreKeySignalMessage is NewPreKeySignalMessage with the Kyber prekey ID and KEM ciphertext of a PQXDH session.
+func NewPQPreKeySignalMessage(version int, registrationID uint32, preKeyID *optional.Uint32, signedPreKeyID uint32,
+	kyberPreKeyID *optional.Uint32, kyberCiphertext []byte,
+	baseKey ecc.ECPublicKeyable, identityKey *identity.Key, message *SignalMessage, serializer PreKeySignalMessageSerializer,
+	msgSerializer SignalMessageSerializer) (*PreKeySignalMessage, error) {
 	structure := &PreKeySignalMessageStructure{
-		Version:        version,
-		RegistrationID: registrationID,
-		PreKeyID:       preKeyID,
-		SignedPreKeyID: signedPreKeyID,
-		BaseKey:        baseKey.Serialize(),
-		IdentityKey:    identityKey.PublicKey().Serialize(),
-		Message:        message.Serialize(),
+		KyberPreKeyID:   kyberPreKeyID,
+		KyberCiphertext: kyberCiphertext,
+		Version:         version,
+		RegistrationID:  registrationID,
+		PreKeyID:        preKeyID,
+		SignedPreKeyID:  signedPreKeyID,
+		BaseKey:         baseKey.Serialize(),
+		IdentityKey:     identityKey.PublicKey().Serialize(),
+		Message:         message.Serialize(),
 	}
 	return NewPreKeySignalMessageFromStruct(structure, serializer, msgSerializer)
 }
@@ -103,6 +113,9 @@ type PreKeySignalMessageStructure struct {
 	IdentityKey    []byte
 	Message        []byte
 	Version        int
+
+	KyberPreKeyID   *optional.Uint32
+	KyberCiphertext []byte
 }
 
 // PreKeySignalMessage is an encrypted Signal message that is designed
@@ -129,6 +142,17 @@ func (p *PreKeySignalMessage) RegistrationID() uint32 {
 
 func (p *PreKeySignalMessage) PreKeyID() *optional.Uint32 {
 	return p.structure.PreKeyID
+}
+
+func (p *PreKeySignalMessage) KyberPreKeyID() *optional.Uint32 {
+	if p.structure.KyberPreKeyID == nil {
+		return optional.NewEmptyUint32()
+	}
+	return p.structure.KyberPreKeyID
+}
+
+func (p *PreKeySignalMessage) KyberCiphertext() []byte {
+	return p.structure.KyberCiphertext
 }
 
 func (p *PreKeySignalMessage) SignedPreKeyID() uint32 {

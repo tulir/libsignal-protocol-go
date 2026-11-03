@@ -13,6 +13,8 @@ type GroupCiphertextMessage interface {
 const UnsupportedVersion = 1
 const CurrentVersion = 3
 
+const PQXDHVersion = 4
+
 const WHISPER_TYPE = 2
 const PREKEY_TYPE = 3
 const SENDERKEY_TYPE = 4
