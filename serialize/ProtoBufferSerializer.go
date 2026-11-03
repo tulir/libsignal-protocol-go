@@ -94,6 +94,7 @@ func (j *ProtoBufSignalMessageSerializer) Deserialize(serialized []byte) (*proto
 		PreviousCounter: sm.GetPreviousCounter(),
 		CipherText:      sm.GetCiphertext(),
 		Mac:             mac,
+		MacInput:        serialized[:len(serialized)-protocol.MacLength],
 	}
 
 	return &signalMessage, nil
