@@ -39,6 +39,10 @@ type Bundle struct {
 	signedPreKeyPublic    ecc.ECPublicKeyable
 	signedPreKeySignature [64]byte
 	identityKey           *identity.Key
+
+	kyberPreKeyID        *optional.Uint32
+	kyberPreKeyPublic    []byte
+	kyberPreKeySignature []byte
 }
 
 // DeviceID returns the device ID this PreKey belongs to.
@@ -83,4 +87,22 @@ func (b *Bundle) IdentityKey() *identity.Key {
 // this PreKey.
 func (b *Bundle) RegistrationID() uint32 {
 	return b.registrationID
+}
+
+func (b *Bundle) SetKyberPreKey(id uint32, publicKey, signature []byte) {
+	b.kyberPreKeyID = optional.NewOptionalUint32(id)
+	b.kyberPreKeyPublic = publicKey
+	b.kyberPreKeySignature = signature
+}
+
+func (b *Bundle) KyberPreKeyID() *optional.Uint32 {
+	return b.kyberPreKeyID
+}
+
+func (b *Bundle) KyberPreKeyPublic() []byte {
+	return b.kyberPreKeyPublic
+}
+
+func (b *Bundle) KyberPreKeySignature() []byte {
+	return b.kyberPreKeySignature
 }
