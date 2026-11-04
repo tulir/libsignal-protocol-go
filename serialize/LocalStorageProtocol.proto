@@ -2,6 +2,8 @@
 syntax = "proto2";
 package textsecure;
 
+option go_package = "go.mau.fi/libsignal/serialize";
+
 option java_package = "org.whispersystems.libsignal.state";
 option java_outer_classname = "StorageProtos";
 

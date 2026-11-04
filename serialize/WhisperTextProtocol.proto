@@ -2,6 +2,8 @@
 syntax = "proto2";
 package textsecure;
 
+option go_package = "go.mau.fi/libsignal/serialize";
+
 message SignalMessage {
   optional bytes  ratchetKey      = 1;
   optional uint32 counter         = 2;
@@ -10,12 +12,14 @@ message SignalMessage {
 }
 
 message PreKeySignalMessage {
-  optional uint32 registrationId = 5;
-  optional uint32 preKeyId       = 1;
-  optional uint32 signedPreKeyId = 6;
-  optional bytes  baseKey        = 2;
-  optional bytes  identityKey    = 3;
-  optional bytes  message        = 4; // SignalMessage
+  optional uint32 registrationId  = 5;
+  optional uint32 preKeyId        = 1;
+  optional uint32 signedPreKeyId  = 6;
+  optional uint32 kyberPreKeyId   = 7;
+  optional bytes  baseKey         = 2;
+  optional bytes  identityKey     = 3;
+  optional bytes  message         = 4; // SignalMessage
+  optional bytes  kyberCiphertext = 8;
 }
 
 message KeyExchangeMessage {
